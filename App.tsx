@@ -1,31 +1,22 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+
+import TaskListScreen from './app/screens/TaskListScreen'; 
+/* Comente estes imports:
+import NewTaskScreen from './app/screens/NewTaskScreen';
+import EditTaskScreen from './app/screens/EditTaskScreen';
+import CalendarScreen from './app/screens/CalendarScreen';
+*/
+
+const Stack = createNativeStackNavigator();
 
 export default function App() {
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>👋 Hello World PAP!</Text>
-    </View>
+    <NavigationContainer>
+      <Stack.Navigator>
+        <Stack.Screen name="Tasks" component={TaskListScreen} />
+        {/* Comente as outras Stack.Screens */}
+      </Stack.Navigator>
+    </NavigationContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F0F4FF',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
-    marginTop: 10,
-    textAlign: 'center',
-    paddingHorizontal: 20,
-  },
-});
