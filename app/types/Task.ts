@@ -1,22 +1,23 @@
 // app/types/Task.ts
 
 export interface Task {
-    id: string; // Identificador único
-    title: string;
-    description: string;
-    // A data/hora em que a tarefa deve ser feita (para o lembrete)
-    scheduledTime: Date; 
-    // O cuidador pode definir se é recorrente (diário, semanal, etc.)
-    isRecurring: boolean; 
-    recurrenceType?: 'daily' | 'weekly' | 'monthly';
-    // Adiciona a categoria para o assistente de voz (e.g., "Medicação", "Alimentação")
-    category: string; 
-  }
+  id: string; // ID único para editar/remover
+  title: string; // Ex: "Tomar Comprimidos do Almoço"
+  description: string; // Ex: "Comprimido azul e branco"
   
-  // Tipo para registar se a tarefa foi completada ou não num determinado dia
-  export interface TaskCompletion {
-    taskId: string;
-    // A data em que o idoso completou ou devia ter completado a tarefa
-    date: string; // Formato 'YYYY-MM-DD'
-    isCompleted: boolean;
-  }
+  // Agendamento
+  scheduledTime: Date; // A data/hora exata do lembrete (pode ser ajustado para string/número, mas Date é o mais limpo)
+  isRecurring: boolean;
+  recurrenceType?: 'daily' | 'weekly' | 'monthly';
+
+  // Categoria (útil para o assistente de voz)
+  category: 'Medicação' | 'Alimentação' | 'Higiene' | 'Outro'; 
+}
+
+// Tipo para o Context (o que o Context irá disponibilizar a toda a app)
+export interface TaskContextType {
+  tasks: Task[];
+  addTask: (task: Omit<Task, 'id'>) => void; // Adiciona uma nova tarefa (sem o ID, que será gerado)
+  removeTask: (id: string) => void;
+  // (Futuramente, vamos adicionar editTask e toggleCompletion)
+}
