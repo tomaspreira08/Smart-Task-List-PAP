@@ -68,13 +68,29 @@ export const TaskProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         });
     };
 
+    const updateTask = async (id: string, updatedData: Partial<Task>) => {
+        try {
+            const taskDocRef = doc(db, COLLECTION_NAME, id);
+            await updateDoc(taskDocRef, updatedData);
+            console.log("Tarefa atualizada!");
+        } catch (error) {
+            console.error("Erro ao atualizar tarefa:", error);
+        }
+    };
+
     // ----------------------------------------------------
     // 3. APAGAR TAREFA
     // ----------------------------------------------------
-    const removeTask = (id: string) => {
-        const taskDocRef = doc(db, COLLECTION_NAME, id);
-        deleteDoc(taskDocRef); 
-    };
+    const removeTask = async (id: string) => {
+        try {
+          const taskRef = doc(db, 'tasks', id);
+          await deleteDoc(taskRef);
+          // Se não tiveres um listener (onSnapshot), tens de atualizar o estado manual:
+          setTasks(prevTasks => prevTasks.filter(task => task.id !== id));
+        } catch (error) {
+          console.error("Erro ao apagar:", error);
+        }
+      };
     
     // ----------------------------------------------------
     // 4. ALTERAR STATUS (CONCLUÍDO/PENDENTE)
@@ -96,10 +112,12 @@ export const TaskProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     return (
-        <TaskContext.Provider value={contextValue}>
-            {children}
+        <TaskContext.Provider value={{ tasks, isLoading, addTask, removeTask, toggleTaskCompletion, updateTask }}> 
+          {/* 👆 Garante que o removeTask está aqui dentro! */}
+          {children}
         </TaskContext.Provider>
-    );
+      );
+    
 };
 
 export const useTasks = () => {
@@ -109,3 +127,4 @@ export const useTasks = () => {
     }
     return context;
 };
+

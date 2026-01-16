@@ -32,7 +32,7 @@ const NewTaskScreen: React.FC<NewTaskProps> = ({ navigation }) => {
     }
 
     // Criar o objeto da nova tarefa
-    const newTaskData: Omit<Task, 'id'> = {
+    const newTaskData: Omit<Task, 'id' | 'isCompleted'> = {
       title: title.trim(),
       description: description.trim(),
       category: category,
