@@ -27,7 +27,7 @@ const NewTaskScreen: React.FC<NewTaskProps> = ({ navigation }) => {
   // 2. Lógica de Submissão da Tarefa
   const handleSaveTask = () => {
     if (!title.trim() || !description.trim()) {
-      Alert.alert("Erro", "Por favor, preencha o título e a descrição.");
+      Alert.alert("Erro!!", "Por favor, preencha o título e a descrição.");
       return;
     }
 
