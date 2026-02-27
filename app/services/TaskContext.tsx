@@ -70,27 +70,32 @@ export const TaskProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const updateTask = async (id: string, updatedData: Partial<Task>) => {
         try {
-            const taskDocRef = doc(db, COLLECTION_NAME, id);
-            await updateDoc(taskDocRef, updatedData);
-            console.log("Tarefa atualizada!");
+          // 1. Verifica se usas COLLECTION_NAME ou 'tasks'
+          const taskDocRef = doc(db, COLLECTION_NAME, id); 
+          
+          // 2. O updateDoc precisa do Document Reference e dos dados novos
+          await updateDoc(taskDocRef, updatedData);
+          
+          console.log("Sucesso: Tarefa atualizada no Firebase!");
         } catch (error) {
-            console.error("Erro ao atualizar tarefa:", error);
+          console.error("Erro ao atualizar tarefa:", error);
+          throw error; // Lança o erro para podermos ver na consola se falhar
         }
-    };
+      };
 
     // ----------------------------------------------------
     // 3. APAGAR TAREFA
     // ----------------------------------------------------
     const removeTask = async (id: string) => {
         try {
-          const taskRef = doc(db, 'tasks', id);
-          await deleteDoc(taskRef);
-          // Se não tiveres um listener (onSnapshot), tens de atualizar o estado manual:
-          setTasks(prevTasks => prevTasks.filter(task => task.id !== id));
+            console.log("Tentando apagar ID:", id);
+            const taskRef = doc(db, COLLECTION_NAME, id); // 👈 Usa a variável aqui
+            await deleteDoc(taskRef);
+            console.log("Apagado com sucesso no Firebase!");
         } catch (error) {
-          console.error("Erro ao apagar:", error);
+            console.error("Erro ao apagar no Firebase:", error);
         }
-      };
+    };
     
     // ----------------------------------------------------
     // 4. ALTERAR STATUS (CONCLUÍDO/PENDENTE)
@@ -105,15 +110,22 @@ export const TaskProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // 🚨 3. INCLUIR O isLoading NO VALOR DO CONTEXTO 🚨
     const contextValue: TaskContextType = {
         tasks,
-        addTask,
+        addTask,    
+        updateTask,
         removeTask,
         toggleTaskCompletion, 
         isLoading, 
     };
 
     return (
-        <TaskContext.Provider value={{ tasks, isLoading, addTask, removeTask, toggleTaskCompletion, updateTask }}> 
-          {/* 👆 Garante que o removeTask está aqui dentro! */}
+        <TaskContext.Provider value={{ 
+          tasks, 
+          isLoading, 
+          addTask, 
+          removeTask, // 👈 VERIFICA SE ESTA LINHA EXISTE
+          toggleTaskCompletion, 
+          updateTask // 👈 E ESTA TAMBÉM
+        }}> 
           {children}
         </TaskContext.Provider>
       );

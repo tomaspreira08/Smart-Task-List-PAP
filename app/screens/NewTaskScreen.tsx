@@ -1,122 +1,143 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, Alert } from 'react-native';
-// Tipos e Hooks de Navegação
+import { View, Text, TextInput, TouchableOpacity, Alert, Platform } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/RootStackParamList'; 
-
-// Context e Tipos de Tarefa
-import { useTasks } from '../services/TaskContext'; // 👈 O nosso hook
+import { useTasks } from '../services/TaskContext'; 
 import { Task } from '../types/Task';
+import { styles } from './NewTaskScreen.styles'; // Recomendo separar os estilos como fizemos antes
 
-// Define os tipos das props para este ecrã
 type NewTaskProps = NativeStackScreenProps<RootStackParamList, 'NewTask'>;
 
-// Opções de Categoria para o formulário
 const categories: Task['category'][] = ['Medicação', 'Alimentação', 'Higiene', 'Outro'];
 
 const NewTaskScreen: React.FC<NewTaskProps> = ({ navigation }) => {
-  // 1. Obter a função addTask do Contexto
   const { addTask } = useTasks(); 
 
   // Estados do Formulário
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState<Task['category']>('Medicação'); 
-  // Nota: Deixamos o campo de data e hora para mais tarde, por agora é fixo/mock.
+  const [category, setCategory] = useState<Task['category']>('Medicação');
+  
+  // Estados para Data e Hora
+  const [dateTime, setDateTime] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
-  // 2. Lógica de Submissão da Tarefa
-  const handleSaveTask = () => {
-    if (!title.trim() || !description.trim()) {
-      Alert.alert("Erro!!", "Por favor, preencha o título e a descrição.");
+  const handleSaveTask = async () => {
+    if (!title.trim()) {
+      Alert.alert("Erro", "Por favor, insira pelo menos um título.");
       return;
     }
 
-    // Criar o objeto da nova tarefa
+    // Criar o objeto conforme o novo Task.ts
     const newTaskData: Omit<Task, 'id' | 'isCompleted'> = {
       title: title.trim(),
       description: description.trim(),
       category: category,
-      scheduledTime: new Date(), // MOCK: Usamos a hora atual por agora
-      isRecurring: false, // MOCK: Por agora, tarefas não recorrentes
+      // Formato para o Calendário (YYYY-MM-DD)
+      date: dateTime.toISOString().split('T')[0],
+      // Formato para o Assistente de Voz ler (HH:mm)
+      scheduledTime: dateTime.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
+      isRecurring: false,
     };
 
-    // Chamar a função do Contexto para adicionar a tarefa
-    addTask(newTaskData);
-    
-    // Navegar de volta para o ecrã principal
-    navigation.goBack(); 
-    
-    // Podemos também limpar o formulário, mas o goBack é suficiente.
+    try {
+      await addTask(newTaskData);
+      navigation.goBack(); 
+    } catch (error) {
+      Alert.alert("Erro", "Não foi possível guardar o lembrete.");
+    }
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.label}>Título do Lembrete:</Text>
+      <Text style={styles.label}>O que deve ser feito?</Text>
       <TextInput
         style={styles.input}
         value={title}
         onChangeText={setTitle}
-        placeholder="Ex: Tomar Comprimidos do Almoço"
+        placeholder="Ex: Tomar medicação"
       />
 
-      <Text style={styles.label}>Descrição:</Text>
+      <Text style={styles.label}>Detalhes:</Text>
       <TextInput
-        style={[styles.input, styles.descriptionInput]}
+        style={[styles.input, { height: 80 }]}
         value={description}
         onChangeText={setDescription}
-        placeholder="Ex: Comprimido azul e branco"
+        placeholder="Ex: 1 comprimido após o pequeno-almoço"
         multiline
       />
 
+      <Text style={styles.label}>Agendamento:</Text>
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        {/* Seletor de Data */}
+        <TouchableOpacity 
+          style={[styles.input, { flex: 1, alignItems: 'center' }]} 
+          onPress={() => setShowDatePicker(true)}
+        >
+          <Text>📅 {dateTime.toLocaleDateString('pt-PT')}</Text>
+        </TouchableOpacity>
+
+        {/* Seletor de Hora */}
+        <TouchableOpacity 
+          style={[styles.input, { flex: 1, alignItems: 'center' }]} 
+          onPress={() => setShowTimePicker(true)}
+        >
+          <Text>⏰ {dateTime.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {showDatePicker && (
+        <DateTimePicker
+          value={dateTime}
+          mode="date"
+          display="default"
+          onChange={(event, date) => {
+            setShowDatePicker(false);
+            if (date) setDateTime(date);
+          }}
+        />
+      )}
+
+      {showTimePicker && (
+        <DateTimePicker
+          value={dateTime}
+          mode="time"
+          is24Hour={true}
+          display="default"
+          onChange={(event, date) => {
+            setShowTimePicker(false);
+            if (date) setDateTime(date);
+          }}
+        />
+      )}
+
       <Text style={styles.label}>Categoria:</Text>
-      {/* Para simplificar no terminal, usamos botões para mudar a categoria.
-        Mais tarde, trocaremos por um Picker (dropdown).
-      */}
       <View style={styles.categoryContainer}>
         {categories.map((cat) => (
-          <Button 
+          <TouchableOpacity 
             key={cat}
-            title={cat}
+            style={[
+              styles.categoryButton, 
+              category === cat && styles.categoryButtonActive // Aplica estilo ativo
+            ]}
             onPress={() => setCategory(cat)}
-            color={category === cat ? '#007AFF' : '#CCCCCC'}
-          />
+          >
+            <Text style={[
+              styles.categoryText, 
+              category === cat && styles.categoryTextActive
+            ]}>
+              {cat}
+            </Text>
+          </TouchableOpacity>
         ))}
       </View>
-      
-      <View style={styles.buttonContainer}>
-        <Button 
-          title="Guardar Lembrete" 
-          onPress={handleSaveTask} 
-          color="#125F05" // Cor Verde
-        />
-      </View>
+      <TouchableOpacity style={styles.mainSaveButton} onPress={handleSaveTask}>
+        <Text style={styles.mainSaveButtonText}>Guardar Lembrete</Text>
+      </TouchableOpacity>
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: '#fff' },
-  label: { fontSize: 16, fontWeight: 'bold', marginTop: 15, marginBottom: 5 },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    padding: 10,
-    borderRadius: 5,
-    fontSize: 16,
-  },
-  descriptionInput: {
-    height: 80,
-    textAlignVertical: 'top',
-  },
-  categoryContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 5,
-  },
-  buttonContainer: {
-    marginTop: 30,
-  }
-});
 
 export default NewTaskScreen;

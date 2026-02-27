@@ -1,21 +1,52 @@
-import React from 'react';
-import { View, Text, Button, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, FlatList, ActivityIndicator, Modal, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import DateTimePicker from '@react-native-community/datetimepicker'; // 👈 Importa o Picker
 import { RootStackParamList } from '../types/RootStackParamList'; 
 import { useTasks } from '../services/TaskContext'; 
 import { Task } from '../types/Task';
-import TaskCard from '../components/TaskCard'; // 👈 Importamos o novo componente
+import TaskCard from '../components/TaskCard';
+import { styles } from './TaskListScreen.styles';
 
 type TaskListScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Tasks'>;
 
 const TaskListScreen: React.FC = () => {
   const navigation = useNavigation<TaskListScreenNavigationProp>();
-  const { tasks, isLoading } = useTasks(); 
+  const { tasks, isLoading, updateTask } = useTasks(); 
 
-  // Função que define como cada item é renderizado (agora usa o TaskCard)
+  // Estados para o Modal e Edição
+  const [modalVisible, setModalVisible] = useState(false);
+  const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
+
+  // Estados para controlar a visibilidade dos pickers de Data/Hora no Modal
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+
+  const handleOpenEdit = (task: Task) => {
+    setTaskToEdit({ ...task });
+    setModalVisible(true);
+  };
+
+  const handleSaveUpdate = async () => {
+    if (taskToEdit) {
+      try {
+        await updateTask(taskToEdit.id, {
+          title: taskToEdit.title,
+          description: taskToEdit.description,
+          date: taskToEdit.date,           // 👈 Atualiza a data
+          scheduledTime: taskToEdit.scheduledTime, // 👈 Atualiza a hora
+        });
+        setModalVisible(false);
+        setTaskToEdit(null);
+      } catch (error) {
+        Alert.alert("Erro", "Não foi possível atualizar o lembrete.");
+      }
+    }
+  };
+
   const renderItem = ({ item }: { item: Task }) => (
-    <TaskCard task={item} />
+    <TaskCard task={item} onEdit={handleOpenEdit} />
   );
 
   if (isLoading) {
@@ -29,49 +60,130 @@ const TaskListScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>
-        Meus Lembretes ({tasks.length})
-      </Text>
-
-      {tasks.length > 0 ? (
-        <FlatList
-          data={tasks}
-          keyExtractor={(item) => item.id}
-          renderItem={renderItem} // 👈 Chama a função ali de cima
-          style={styles.list}
-        />
-      ) : (
-        <View style={styles.center}>
-          <Text style={styles.emptyText}>Não há tarefas. Adicione uma nova!</Text>
+      <View style={styles.headerContainer}>
+        <View>
+          <Text style={styles.greeting}>Olá, Tomás! 👋</Text>
+          <Text style={styles.header}>Meus Lembretes</Text>
         </View>
-      )}
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>{tasks.length}</Text>
+        </View>
+      </View>
 
-      <View style={styles.navButton}>
-        <Button 
-          title="Adicionar Novo Lembrete"
-          color="#125F05"
+      <FlatList
+        data={tasks}
+        keyExtractor={(item) => item.id}
+        renderItem={renderItem}
+        contentContainerStyle={styles.list}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>Não há tarefas. Adicione uma nova!</Text>
+          </View>
+        }
+      />
+
+      {/* MODAL DE EDIÇÃO ATUALIZADO */}
+      <Modal visible={modalVisible} animationType="slide" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Editar Lembrete</Text>
+
+            <Text style={styles.label}>Título:</Text>
+            <TextInput
+              style={styles.input}
+              value={taskToEdit?.title}
+              onChangeText={(text) => setTaskToEdit(prev => prev ? {...prev, title: text} : null)}
+            />
+
+            <Text style={styles.label}>Descrição:</Text>
+            <TextInput
+              style={[styles.input, { height: 60 }]}
+              value={taskToEdit?.description}
+              onChangeText={(text) => setTaskToEdit(prev => prev ? {...prev, description: text} : null)}
+              multiline
+            />
+
+            {/* SECÇÃO DE DATA E HORA NO MODAL */}
+            <Text style={styles.label}>Agendamento:</Text>
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 15 }}>
+              <TouchableOpacity 
+                style={[styles.input, { flex: 1, alignItems: 'center' }]} 
+                onPress={() => setShowDatePicker(true)}
+              >
+                <Text>📅 {taskToEdit?.date ? taskToEdit.date.split('-').reverse().join('/') : 'Data'}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.input, { flex: 1, alignItems: 'center' }]} 
+                onPress={() => setShowTimePicker(true)}
+              >
+                <Text>⏰ {taskToEdit?.scheduledTime || 'Hora'}</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* PICKERS PARA EDIÇÃO */}
+            {showDatePicker && (
+              <DateTimePicker
+                value={taskToEdit?.date ? new Date(taskToEdit.date) : new Date()}
+                mode="date"
+                display="default"
+                onChange={(event, date) => {
+                  setShowDatePicker(false);
+                  if (date) {
+                    const dString = date.toISOString().split('T')[0];
+                    setTaskToEdit(prev => prev ? {...prev, date: dString} : null);
+                  }
+                }}
+              />
+            )}
+
+            {showTimePicker && (
+              <DateTimePicker
+                value={new Date()}
+                mode="time"
+                is24Hour={true}
+                display="default"
+                onChange={(event, time) => {
+                  setShowTimePicker(false);
+                  if (time) {
+                    const tString = time.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+                    setTaskToEdit(prev => prev ? {...prev, scheduledTime: tString} : null);
+                  }
+                }}
+              />
+            )}
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity style={styles.cancelButton} onPress={() => setModalVisible(false)}>
+                <Text style={styles.buttonTextBlack}>Cancelar</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.saveButton} onPress={handleSaveUpdate}>
+                <Text style={styles.buttonTextWhite}>Guardar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* BOTÕES DE NAVEGAÇÃO */}
+      <View style={styles.footerButtons}>
+        <TouchableOpacity 
+          style={styles.mainButton} 
           onPress={() => navigation.navigate('NewTask')}
-        />
-        <Button 
-          title="Ver o Calendário"
-          color="#007AFF"
+        >
+          <Text style={styles.buttonText}>+ Novo Lembrete</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={[styles.mainButton, { backgroundColor: '#007AFF' }]} 
           onPress={() => navigation.navigate('Calendar')}
-        />
+        >
+          <Text style={styles.buttonText}>📅 Ver Calendário</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-    container: { flex: 1, padding: 10, backgroundColor: '#f0f0f0' },
-    center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    header: { fontSize: 22, fontWeight: 'bold', textAlign: 'center', marginVertical: 15 },
-    list: { width: '100%' },
-    emptyText: { textAlign: 'center', fontSize: 16, color: '#666' },
-    navButton: {
-      padding: 10,
-      gap: 10,
-    }
-});
 
 export default TaskListScreen;

@@ -1,31 +1,34 @@
 // app/types/Task.ts
 
 export interface Task {
-  id: string; // ID único para editar/remover (gerado pelo Firestore)
-  title: string; // Ex: "Tomar Comprimidos do Almoço"
-  description: string; // Ex: "Comprimido azul e branco"
+  id: string; // ID único gerado pelo Firestore
+  title: string; 
+  description: string; 
   
-  // Agendamento
-  scheduledTime: Date; // A data/hora exata do lembrete
+  // --- AJUSTE PARA O CALENDÁRIO ---
+  // Guardamos a data como String para o calendário e ordenação fácil
+  date: string; // Formato: "2026-02-24"
+  
+  // Mantemos o scheduledTime se quiseres guardar a hora exata (opcional)
+  scheduledTime?: string; // Ex: "12:30"
+  
   isRecurring: boolean;
   recurrenceType?: 'daily' | 'weekly' | 'monthly';
 
   // Categoria
   category: 'Medicação' | 'Alimentação' | 'Higiene' | 'Outro'; 
 
-  // Estado de Conclusão (Lógica Verde/Vermelho)
+  // Estado de Conclusão (isCompleted)
   isCompleted: boolean; 
 }
 
-// Tipo para o Context (o que o Context disponibiliza para a App)
 export interface TaskContextType {
   tasks: Task[];
+  isLoading: boolean; 
   
-  // Indica se o Firebase ainda está a carregar os dados
-  isLoading: boolean; // 👈 ADICIONADO PARA RESOLVER O ERRO
-  
-  // Funções de manipulação
+  // Ajuste no addTask para incluir o novo campo 'date'
   addTask: (task: Omit<Task, 'id' | 'isCompleted'>) => void; 
   removeTask: (id: string) => void;
   toggleTaskCompletion: (id: string, currentStatus: boolean) => void;
+  updateTask: (id: string, updatedData: Partial<Task>) => Promise<void>;
 }
