@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { db } from './firebaseConfig'; 
+import { useAuth } from './AuthContext'; // 👈 1. IMPORTAR O TEU AUTH CONTEXT
 import { 
     collection, 
     onSnapshot, 
@@ -8,7 +9,8 @@ import {
     updateDoc, 
     doc, 
     query, 
-    orderBy // 👈 Importamos para que a lista fique organizada
+    orderBy,
+    where // 👈 2. IMPORTAR O WHERE
 } from 'firebase/firestore'; 
 
 import { Task, TaskContextType } from '../types/Task'; 
@@ -19,23 +21,32 @@ export const TaskContext = createContext<TaskContextType | undefined>(undefined)
 
 export const TaskProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [tasks, setTasks] = useState<Task[]>([]);
-    // 🚨 1. ADICIONAR ESTADO DE LOADING 🚨
     const [isLoading, setIsLoading] = useState<boolean>(true); 
-  
+    const { user } = useAuth(); // 👈 3. PEGAR O UTILIZADOR LOGADO
+
     // ----------------------------------------------------
-    // 1. LER DADOS (ON SNAPSHOT) - EM TEMPO REAL
+    // 1. LER DADOS (FILTRADOS POR USER ID)
     // ----------------------------------------------------
     useEffect(() => {
+        // Se não houver utilizador, não tentamos ler nada
+        if (!user) {
+            setTasks([]);
+            setIsLoading(false);
+            return;
+        }
+
         const tasksCollectionRef = collection(db, COLLECTION_NAME); 
         
-        // Criamos uma query para ordenar por data (opcional, mas recomendado)
-        const q = query(tasksCollectionRef, orderBy('scheduledTime', 'asc'));
+        // 👈 4. A QUERY AGORA FILTRA PELO UID DO UTILIZADOR
+        const q = query(
+            tasksCollectionRef, 
+            where("userId", "==", user.uid), // Apenas tarefas deste user
+            orderBy('scheduledTime', 'asc')
+        );
         
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const loadedTasks: Task[] = snapshot.docs.map(document => {
                 const data = document.data();
-                
-                // Conversão segura de Timestamp do Firestore para Date do JS
                 const scheduledDate = data.scheduledTime?.toDate ? data.scheduledTime.toDate() : new Date(data.scheduledTime);
                 
                 return {
@@ -46,59 +57,56 @@ export const TaskProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             });
 
             setTasks(loadedTasks);
-            // 🚨 2. DESLIGAR O LOADING QUANDO OS DADOS CHEGAM 🚨
             setIsLoading(false); 
         }, 
         (error) => {
             console.error("Erro ao carregar dados do Firestore:", error);
-            setIsLoading(false); // Desliga mesmo em caso de erro para não travar a app
+            setIsLoading(false);
         });
 
         return () => unsubscribe(); 
-    }, []); 
+    }, [user]); // 👈 5. RE-EXECUTA SEMPRE QUE O USER MUDA (LOGIN/LOGOUT)
 
     // ----------------------------------------------------
-    // 2. ADICIONAR TAREFA
+    // 2. ADICIONAR TAREFA (VINCULADA AO USER)
     // ----------------------------------------------------
     const addTask = (newTaskData: Omit<Task, 'id' | 'isCompleted'>) => {
+        if (!user) return; // Segurança: Não adiciona se não houver user
+
         const tasksCollectionRef = collection(db, COLLECTION_NAME);
         addDoc(tasksCollectionRef, {
             ...newTaskData,
             isCompleted: false, 
+            userId: user.uid, // 👈 6. GUARDA O ID DO UTILIZADOR NA TAREFA
         });
     };
 
     const updateTask = async (id: string, updatedData: Partial<Task>) => {
         try {
-          // 1. Verifica se usas COLLECTION_NAME ou 'tasks'
-          const taskDocRef = doc(db, COLLECTION_NAME, id); 
-          
-          // 2. O updateDoc precisa do Document Reference e dos dados novos
-          await updateDoc(taskDocRef, updatedData);
-          
-          console.log("Sucesso: Tarefa atualizada no Firebase!");
+            const taskDocRef = doc(db, COLLECTION_NAME, id); 
+            await updateDoc(taskDocRef, updatedData);
+            console.log("Sucesso: Tarefa atualizada!");
         } catch (error) {
-          console.error("Erro ao atualizar tarefa:", error);
-          throw error; // Lança o erro para podermos ver na consola se falhar
+            console.error("Erro ao atualizar tarefa:", error);
+            throw error;
         }
-      };
+    };
 
     // ----------------------------------------------------
     // 3. APAGAR TAREFA
     // ----------------------------------------------------
     const removeTask = async (id: string) => {
         try {
-            console.log("Tentando apagar ID:", id);
-            const taskRef = doc(db, COLLECTION_NAME, id); // 👈 Usa a variável aqui
+            const taskRef = doc(db, COLLECTION_NAME, id);
             await deleteDoc(taskRef);
-            console.log("Apagado com sucesso no Firebase!");
+            console.log("Apagado com sucesso!");
         } catch (error) {
-            console.error("Erro ao apagar no Firebase:", error);
+            console.error("Erro ao apagar:", error);
         }
     };
     
     // ----------------------------------------------------
-    // 4. ALTERAR STATUS (CONCLUÍDO/PENDENTE)
+    // 4. ALTERAR STATUS
     // ----------------------------------------------------
     const toggleTaskCompletion = (id: string, currentStatus: boolean) => {
         const taskDocRef = doc(db, COLLECTION_NAME, id);
@@ -107,29 +115,18 @@ export const TaskProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         });
     };
 
-    // 🚨 3. INCLUIR O isLoading NO VALOR DO CONTEXTO 🚨
-    const contextValue: TaskContextType = {
-        tasks,
-        addTask,    
-        updateTask,
-        removeTask,
-        toggleTaskCompletion, 
-        isLoading, 
-    };
-
     return (
         <TaskContext.Provider value={{ 
           tasks, 
           isLoading, 
           addTask, 
-          removeTask, // 👈 VERIFICA SE ESTA LINHA EXISTE
+          removeTask, 
           toggleTaskCompletion, 
-          updateTask // 👈 E ESTA TAMBÉM
+          updateTask 
         }}> 
           {children}
         </TaskContext.Provider>
       );
-    
 };
 
 export const useTasks = () => {
@@ -139,4 +136,3 @@ export const useTasks = () => {
     }
     return context;
 };
-

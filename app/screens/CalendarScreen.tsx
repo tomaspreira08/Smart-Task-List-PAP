@@ -1,86 +1,161 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, FlatList } from 'react-native';
+import { View, Text, Modal, FlatList, TouchableOpacity } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { useTasks } from '../services/TaskContext';
-import TaskCard from '../components/TaskCard';
-import { styles } from './CalendarScreen.styles';
+import { styles } from './CalendarScreen.styles'; 
 import { COLORS } from '../constants/theme';
+import { Ionicons } from '@expo/vector-icons'; 
 
-// Configuração para Português
+// Configuração do idioma
 LocaleConfig.locales['pt'] = {
   monthNames: ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'],
-  monthNamesShort: ['Jan.','Fev.','Mar.','Abr.','Mai.','Jun.','Jul.','Ago.','Set.','Out.','Nov.','Dez.'],
+  monthNamesShort: ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'],
   dayNames: ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'],
-  dayNamesShort: ['Dom.','Seg.','Ter.','Qua.','Qui.','Sex.','Sáb.'],
-  today: "Hoje"
+  dayNamesShort: ['DOM','SEG','TER','QUA','QUI','SEX','SÁB'], 
+  today: 'Hoje'
 };
 LocaleConfig.defaultLocale = 'pt';
 
 const CalendarScreen: React.FC = () => {
   const { tasks } = useTasks();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [isModalVisible, setIsModalVisible] = useState(false);
 
-  // Marcar no calendário os dias que têm tarefas
   const markedDates = useMemo(() => {
     const marks: any = {};
-    tasks.forEach(task => {
-      if (task.date) { // Certifica-te que a tua Task tem o campo 'date'
-        marks[task.date] = { 
-          marked: true, 
-          dotColor: COLORS.primary 
-        };
-      }
+
+    const tasksByDate = tasks.reduce((acc: any, task) => {
+      if (!acc[task.date]) acc[task.date] = [];
+      acc[task.date].push(task);
+      return acc;
+    }, {});
+
+    Object.keys(tasksByDate).forEach(date => {
+      const dayTasks = tasksByDate[date];
+      const allDone = dayTasks.every((t: any) => t.isCompleted === true);
+
+      marks[date] = {
+        customStyles: {
+          container: {
+            backgroundColor: allDone ? '#2ECC71' : '#E74C3C',
+            borderRadius: 8,
+          },
+          text: {
+            color: 'white',
+            fontWeight: 'bold',
+          },
+        },
+      };
     });
-    
-    // Destacar o dia selecionado
+
     marks[selectedDate] = {
       ...marks[selectedDate],
       selected: true,
-      selectedColor: COLORS.primary,
+      customStyles: {
+        container: {
+          ...(marks[selectedDate]?.customStyles?.container || {}),
+          borderWidth: 3,
+          borderColor: COLORS.primary,
+          borderRadius: 8,
+        },
+        text: {
+          ...(marks[selectedDate]?.customStyles?.text || { color: 'black' }),
+          fontWeight: 'bold',
+        }
+      }
     };
-    
+
     return marks;
   }, [tasks, selectedDate]);
 
-  // Filtrar tarefas do dia selecionado
+  // Filtra as tarefas do dia clicado para o Modal
   const filteredTasks = tasks.filter(t => t.date === selectedDate);
+
+  const handleDayPress = (day: any) => {
+    setSelectedDate(day.dateString);
+    setIsModalVisible(true);
+  };
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Calendário</Text>
+        <Text style={styles.title}>Histórico</Text>
       </View>
 
-      <Calendar
-        style={styles.calendar}
-        theme={{
-          todayTextColor: COLORS.primary,
-          arrowColor: COLORS.primary,
-          selectedDayBackgroundColor: COLORS.primary,
-          textDayFontWeight: '500',
-          textMonthFontWeight: 'bold',
-        }}
-        onDayPress={(day: any) => setSelectedDate(day.dateString)}
-        markedDates={markedDates}
-      />
-
-      <View style={styles.taskList}>
-        <Text style={styles.sectionTitle}>
-          Tarefas de {selectedDate.split('-').reverse().join('/')}
-        </Text>
-        
-        <FlatList
-          data={filteredTasks}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <TaskCard task={item} onEdit={() => {}} /> 
-          )}
-          ListEmptyComponent={
-            <Text style={{ textAlign: 'center', color: '#999', marginTop: 20 }}>
-              Nenhum lembrete para este dia.
-            </Text>
-          }
+      <View style={styles.calendarContainer}>
+        <Calendar
+          markingType={'custom'}
+          onDayPress={handleDayPress}
+          markedDates={markedDates}
+          style={styles.calendar}
+          firstDay={1}
+          theme={{
+            todayTextColor: COLORS.primary,
+            textDayFontSize: 20,
+            textMonthFontSize: 26,
+            textDayHeaderFontSize: 14,
+            textDayHeaderFontWeight: 'bold',
+            // @ts-ignore
+            'stylesheet.calendar.main': {
+              week: {
+                marginTop: 20,
+                marginBottom: 15,
+                flexDirection: 'row',
+                justifyContent: 'space-around',
+              }
+            }
+          } as any}
         />
+      </View>
+
+      {/* Modal das Tarefas */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={isModalVisible}
+        onRequestClose={() => setIsModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Tarefas: {selectedDate.split('-').reverse().join('/')}</Text>
+              <TouchableOpacity onPress={() => setIsModalVisible(false)}>
+                <Ionicons name="close-circle" size={32} color={COLORS.primary} />
+              </TouchableOpacity>
+            </View>
+
+            <FlatList
+              data={filteredTasks}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <View style={styles.taskItem}>
+                  <Text style={[styles.taskText, item.isCompleted && styles.completedText]}>
+                    {item.title}
+                  </Text>
+                  {item.isCompleted ? (
+                    <Ionicons name="checkmark-circle" size={26} color="#2ECC71" />
+                  ) : (
+                    <Ionicons name="ellipse-outline" size={26} color="#E74C3C" />
+                  )}
+                </View>
+              )}
+              ListEmptyComponent={
+                <Text style={styles.emptyText}>Sem tarefas para este dia.</Text>
+              }
+            />
+          </View>
+        </View>
+      </Modal>
+
+      <View style={styles.footerLegend}>
+        <View style={styles.legendItem}>
+          <View style={[styles.dot, { backgroundColor: '#2ECC71' }]} />
+          <Text style={{ fontSize: 16 }}>Concluído</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.dot, { backgroundColor: '#E74C3C' }]} />
+          <Text style={{ fontSize: 16 }}>Pendente</Text>
+        </View>
       </View>
     </View>
   );

@@ -1,8 +1,8 @@
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native'; // 👈 Removido o StyleSheet daqui
+import { View, Text, TouchableOpacity } from 'react-native';
 import { useTasks } from '../services/TaskContext';
 import { Task } from '../types/Task';
-import { styles } from './TaskCard.styles'; // 👈 Garante que o caminho está correto (se estiverem na mesma pasta é './TaskCard.styles')
+import { styles } from './TaskCard.styles';
 
 interface TaskCardProps {
   task: Task;
@@ -14,7 +14,6 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onEdit }) => {
 
   const handleDelete = () => {
     try {
-      console.log("A remover tarefa:", task.id);
       removeTask(task.id);
     } catch (err) {
       console.log("Erro ao remover:", err);
@@ -23,16 +22,11 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onEdit }) => {
 
   return (
     <View style={styles.card}>
-      {/* Informação da Tarefa */}
       <View style={styles.info}>
-        <Text style={styles.title}>{task.title}</Text>
-        <Text style={styles.description} numberOfLines={2}>
-          {task.description || "Sem descrição"}
-        </Text>
+        <Text style={styles.title}>{task.title || ""}</Text>
+        <Text style={styles.description} numberOfLines={2}>{task.description || "Sem descrição"}</Text>
         <Text style={styles.category}>📂 {task.category || "Geral"}</Text>
       </View>
-
-      {/* Contentor de Botões de Ação */}
       <View style={styles.actions}>
         <TouchableOpacity 
           style={[styles.button, styles.editButton]} 
@@ -41,7 +35,6 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onEdit }) => {
         >
           <Text style={styles.buttonText}>Editar</Text>
         </TouchableOpacity>
-
         <TouchableOpacity 
           style={[styles.button, styles.deleteButton]} 
           onPress={handleDelete}
@@ -54,4 +47,4 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onEdit }) => {
   );
 };
 
-export default TaskCard; // 👈 O ficheiro termina aqui!
+export default TaskCard;

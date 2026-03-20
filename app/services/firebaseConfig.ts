@@ -1,5 +1,10 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore"; 
+import { getFirestore } from "firebase/firestore";
+// @ts-ignore
+import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
+// @ts-ignore
+import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
+
 // @ts-ignore
 import { 
   FIREBASE_API_KEY, 
@@ -19,8 +24,19 @@ const firebaseConfig = {
     appId: FIREBASE_APP_ID
 };
 
-// Inicializa a ligação principal ao Firebase
 const app = initializeApp(firebaseConfig);
-
-// Inicializa o Cloud Firestore e exporta-o 
 export const db = getFirestore(app);
+
+// 🚨 ESTA É A CONFIGURAÇÃO QUE NÃO FALHA 🚨
+let auth;
+try {
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(ReactNativeAsyncStorage)
+  });
+} catch (error) {
+  // Caso ele já tenha sido inicializado por outro ficheiro (acontece no Fast Refresh)
+  const { getAuth } = require('firebase/auth');
+  auth = getAuth(app);
+}
+
+export { auth };

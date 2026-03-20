@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, FlatList, ActivityIndicator, Modal, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import DateTimePicker from '@react-native-community/datetimepicker'; // 👈 Importa o Picker
-import { RootStackParamList } from '../types/RootStackParamList'; 
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { doc, getDoc } from 'firebase/firestore';
+import { signOut } from 'firebase/auth';
+import { auth, db } from '../services/firebaseConfig';
+import { useAuth } from '../services/AuthContext';
 import { useTasks } from '../services/TaskContext'; 
+import { RootStackParamList } from '../types/RootStackParamList'; 
 import { Task } from '../types/Task';
 import TaskCard from '../components/TaskCard';
 import { styles } from './TaskListScreen.styles';
@@ -14,17 +18,39 @@ type TaskListScreenNavigationProp = NativeStackNavigationProp<RootStackParamList
 const TaskListScreen: React.FC = () => {
   const navigation = useNavigation<TaskListScreenNavigationProp>();
   const { tasks, isLoading, updateTask } = useTasks(); 
+  const { user } = useAuth();
 
-  // Estados para o Modal e Edição
+  // Estados
+  const [userName, setUserName] = useState('Utilizador');
   const [modalVisible, setModalVisible] = useState(false);
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
-
-  // Estados para controlar a visibilidade dos pickers de Data/Hora no Modal
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
 
+  // Efeito para buscar o nome do utilizador no Firestore
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (user?.uid) {
+        try {
+          const userDoc = await getDoc(doc(db, "users", user.uid));
+          if (userDoc.exists()) {
+            // Garante que a chave é "nome" (a mesma que usares no Register)
+            setUserName(userDoc.data().nome || "Utilizador");
+          }
+        } catch (error) {
+          console.log("Erro ao buscar nome:", error);
+        }
+      }
+    };
+    fetchUserData();
+  }, [user]);
+
   const handleOpenEdit = (task: Task) => {
-    setTaskToEdit({ ...task });
+    setTaskToEdit({
+      ...task,
+      date: typeof task.date === 'string' ? task.date : new Date().toISOString().split('T')[0],
+      scheduledTime: task.scheduledTime || "00:00"
+    });
     setModalVisible(true);
   };
 
@@ -34,8 +60,8 @@ const TaskListScreen: React.FC = () => {
         await updateTask(taskToEdit.id, {
           title: taskToEdit.title,
           description: taskToEdit.description,
-          date: taskToEdit.date,           // 👈 Atualiza a data
-          scheduledTime: taskToEdit.scheduledTime, // 👈 Atualiza a hora
+          date: taskToEdit.date,
+          scheduledTime: taskToEdit.scheduledTime,
         });
         setModalVisible(false);
         setTaskToEdit(null);
@@ -60,13 +86,22 @@ const TaskListScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
+      {/* HEADER DINÂMICO */}
       <View style={styles.headerContainer}>
         <View>
-          <Text style={styles.greeting}>Olá, Tomás! 👋</Text>
+          <Text style={styles.greeting}>Olá, {userName}! 👋</Text>
           <Text style={styles.header}>Meus Lembretes</Text>
         </View>
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{tasks.length}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity 
+            onPress={() => signOut(auth)} 
+            style={{ marginRight: 15, padding: 8, backgroundColor: '#ff4444', borderRadius: 8 }}
+          >
+            <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>SAIR</Text>
+          </TouchableOpacity>
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{tasks.length}</Text>
+          </View>
         </View>
       </View>
 
@@ -82,7 +117,6 @@ const TaskListScreen: React.FC = () => {
         }
       />
 
-      {/* MODAL DE EDIÇÃO ATUALIZADO */}
       <Modal visible={modalVisible} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -103,34 +137,32 @@ const TaskListScreen: React.FC = () => {
               multiline
             />
 
-            {/* SECÇÃO DE DATA E HORA NO MODAL */}
             <Text style={styles.label}>Agendamento:</Text>
             <View style={{ flexDirection: 'row', gap: 10, marginBottom: 15 }}>
               <TouchableOpacity 
-                style={[styles.input, { flex: 1, alignItems: 'center' }]} 
+                style={[styles.input, { flex: 1, alignItems: 'center', justifyContent: 'center' }]} 
                 onPress={() => setShowDatePicker(true)}
               >
-                <Text>📅 {taskToEdit?.date ? taskToEdit.date.split('-').reverse().join('/') : 'Data'}</Text>
+                <Text>📅 {taskToEdit?.date ? String(taskToEdit.date).split('-').reverse().join('/') : 'Data'}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity 
-                style={[styles.input, { flex: 1, alignItems: 'center' }]} 
+                style={[styles.input, { flex: 1, alignItems: 'center', justifyContent: 'center' }]} 
                 onPress={() => setShowTimePicker(true)}
               >
-                <Text>⏰ {taskToEdit?.scheduledTime || 'Hora'}</Text>
+                <Text>⏰ {String(taskToEdit?.scheduledTime)}</Text>
               </TouchableOpacity>
             </View>
 
-            {/* PICKERS PARA EDIÇÃO */}
             {showDatePicker && (
               <DateTimePicker
-                value={taskToEdit?.date ? new Date(taskToEdit.date) : new Date()}
+                value={taskToEdit?.date ? new Date(`${taskToEdit.date}T12:00:00`) : new Date()}
                 mode="date"
                 display="default"
-                onChange={(event, date) => {
+                onChange={(event, selectedDate) => {
                   setShowDatePicker(false);
-                  if (date) {
-                    const dString = date.toISOString().split('T')[0];
+                  if (selectedDate && event.type !== 'dismissed') {
+                    const dString = selectedDate.toISOString().split('T')[0];
                     setTaskToEdit(prev => prev ? {...prev, date: dString} : null);
                   }
                 }}
@@ -143,10 +175,10 @@ const TaskListScreen: React.FC = () => {
                 mode="time"
                 is24Hour={true}
                 display="default"
-                onChange={(event, time) => {
+                onChange={(event, selectedTime) => {
                   setShowTimePicker(false);
-                  if (time) {
-                    const tString = time.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+                  if (selectedTime && event.type !== 'dismissed') {
+                    const tString = selectedTime.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
                     setTaskToEdit(prev => prev ? {...prev, scheduledTime: tString} : null);
                   }
                 }}
@@ -157,7 +189,6 @@ const TaskListScreen: React.FC = () => {
               <TouchableOpacity style={styles.cancelButton} onPress={() => setModalVisible(false)}>
                 <Text style={styles.buttonTextBlack}>Cancelar</Text>
               </TouchableOpacity>
-              
               <TouchableOpacity style={styles.saveButton} onPress={handleSaveUpdate}>
                 <Text style={styles.buttonTextWhite}>Guardar</Text>
               </TouchableOpacity>
@@ -166,19 +197,11 @@ const TaskListScreen: React.FC = () => {
         </View>
       </Modal>
 
-      {/* BOTÕES DE NAVEGAÇÃO */}
       <View style={styles.footerButtons}>
-        <TouchableOpacity 
-          style={styles.mainButton} 
-          onPress={() => navigation.navigate('NewTask')}
-        >
+        <TouchableOpacity style={styles.mainButton} onPress={() => navigation.navigate('NewTask')}>
           <Text style={styles.buttonText}>+ Novo Lembrete</Text>
         </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={[styles.mainButton, { backgroundColor: '#007AFF' }]} 
-          onPress={() => navigation.navigate('Calendar')}
-        >
+        <TouchableOpacity style={[styles.mainButton, { backgroundColor: '#007AFF' }]} onPress={() => navigation.navigate('Calendar')}>
           <Text style={styles.buttonText}>📅 Ver Calendário</Text>
         </TouchableOpacity>
       </View>
